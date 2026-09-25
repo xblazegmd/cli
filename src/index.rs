@@ -339,6 +339,10 @@ fn add_deprecation(id: Option<String>, reason: Option<String>, config: &Config) 
         .send()
         .nice_unwrap("Unable to connect to Geode Index");
 
+    if response.status() == 404 {
+        fatal!("Mod '{}' doesn't exist", id);
+    }
+
     if !response.status().is_success() {
         let body: ApiResponse<String> = response
             .json()
@@ -368,6 +372,10 @@ fn remove_deprecation(id: Option<String>, config: &Config) {
         .send()
         .nice_unwrap("Unable to connect to Geode Index");
 
+    if response.status() == 404 {
+        fatal!("Mod '{}' doesn't exist", id);
+    }
+
     if !response.status().is_success() {
         let body: ApiResponse<String> = response
             .json()
@@ -389,6 +397,10 @@ fn get_deprecations(id: Option<String>, config: &Config) {
         .header(USER_AGENT, "GeodeCLI")
         .send()
         .nice_unwrap("Unable to connect to Geode Index");
+
+    if response.status() == 404 {
+        fatal!("Mod '{}' doesn't exist", id);
+    }
 
     if !response.status().is_success() {
         let body: ApiResponse<String> = response
@@ -412,7 +424,7 @@ fn get_deprecations(id: Option<String>, config: &Config) {
         println!("- Reason: {}", deprecation.reason);
 
         if !deprecation.by.is_empty() {
-            println!("- Alternatives");
+            println!("- Alternatives:");
             for alt in deprecation.by.iter() {
                 println!("  - {}", alt);
             }
