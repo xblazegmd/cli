@@ -51,7 +51,7 @@ fn get_mod_deprecations(id: &str, config: &Config) -> Vec<ModDeprecation> {
     if !response.status().is_success() {
         let body: ApiResponse<String> = response
             .json()
-            .nice_unwrap("Unable to parse response from Geode Index");
+            .nice_unwrap("Unable to get deprecations from mod");
         fatal!("Unable to get deprecations from mod: {}", body.error);
     }
 
@@ -71,6 +71,7 @@ fn get_mod_alternatives(config: &Config) -> Vec<String> {
                 break;
             }
 
+            // Making sure the mod exists
             let response = reqwest::blocking::get(index::get_index_url(format!("/v1/mods/{}", alternative), config))
                 .nice_unwrap("Unable to connect to Geode Index");
             if response.status() == 404 {
@@ -120,7 +121,7 @@ pub fn add_deprecation(id: Option<String>, reason: Option<String>, config: &Conf
     if !response.status().is_success() {
         let body: ApiResponse<String> = response
             .json()
-            .nice_unwrap("Unable to parse response from Geode Index");
+            .nice_unwrap("Unable to deprecate mod");
         fatal!("Unable to deprecate mod: {}", body.error);
     }
 
@@ -153,11 +154,11 @@ pub fn remove_deprecation(id: Option<String>, config: &Config) {
     if !response.status().is_success() {
         let body: ApiResponse<String> = response
             .json()
-            .nice_unwrap("Unable to parse response from Geode Index");
-        fatal!("Unable to remove deprecations for mod: {}", body.error);
+            .nice_unwrap("Unable to remove deprecations from mod");
+        fatal!("Unable to remove deprecations from mod: {}", body.error);
     }
 
-    info!("Removed all deprecations from mod {}", id);
+    info!("Removed all deprecations from mod '{}'", id);
 }
 
 pub fn print_mod_deprecations(id: Option<String>, config: &Config) {
@@ -165,7 +166,7 @@ pub fn print_mod_deprecations(id: Option<String>, config: &Config) {
 
     let deprecations = get_mod_deprecations(&id, config);
     if deprecations.is_empty() {
-        fatal!("Mod {} has no deprecations", id);
+        fatal!("Mod '{}' has no deprecations", id);
     }
 
     info!("Deprecations:");
@@ -197,7 +198,7 @@ pub fn update_deprecation(
 
     let deprecations = get_mod_deprecations(&mod_id, config);
     if deprecations.is_empty() {
-        fatal!("Mod {} doesn't have any deprecations", mod_id);
+        fatal!("Mod '{}' has no deprecations", mod_id);
     }
 
     let response = client
@@ -209,14 +210,14 @@ pub fn update_deprecation(
         .nice_unwrap("Unable to connect to Geode Index");
 
     if response.status() == 404 {
-        fatal!("Deprecation {} doesn't exist", deprecation_id);
+        fatal!("Deprecation '{}' doesn't exist", deprecation_id);
     }
 
     if !response.status().is_success() {
         let body: ApiResponse<String> = response
             .json()
-            .nice_unwrap("Unable to parse response from Geode Index");
-        fatal!("Unable to get deprecations from mod: {}", body.error);
+            .nice_unwrap("Unable to update deprecation");
+        fatal!("Unable to update deprecation: {}", body.error);
     }
 
     done!("Updated deprecation successfully");
