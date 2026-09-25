@@ -140,6 +140,9 @@ pub fn print_mod_deprecations(id: Option<String>, config: &Config) {
     let id = id.unwrap_or_else(|| ask_value("Mod ID", None, true));
 
     let deprecations = get_mod_deprecations(&id, config);
+    if deprecations.is_empty() {
+        fatal!("Mod {} has no deprecations", id);
+    }
 
     info!("Deprecations:");
     for (i, deprecation) in deprecations.iter().enumerate() {
