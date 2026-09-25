@@ -304,14 +304,17 @@ fn add_deprecation(id: Option<String>, reason: Option<String>, config: &Config) 
     let id = id.unwrap_or_else(|| ask_value("Mod ID", None, true));
     let reason = reason.unwrap_or_else(|| ask_value("Reason", None, true));
 
-    ask_confirm(&format!("Are you sure you want to deprecate '{}'?", &id), false);
+    let confirm = ask_confirm(&format!("Are you sure you want to deprecate '{}'?", &id), false);
+
+    if !confirm {
+        done!("Operation cancelled");
+        return
+    }
 
     let client = reqwest::blocking::Client::new();
     let url = get_index_url(format!("/v1/mods/{}/deprecations", id), config);
 
     info!("Deprecating mod");
-
-    return;
 
     let response = client
         .post(url)
@@ -328,7 +331,7 @@ fn add_deprecation(id: Option<String>, reason: Option<String>, config: &Config) 
         fatal!("Unable to deprecate mod: {}", body.error);
     }
 
-    info!("Mod deprecated successfully");
+    done!("Mod deprecated successfully");
 }
 
 fn remove_deprecation(id: Option<String>, config: &Config) {
