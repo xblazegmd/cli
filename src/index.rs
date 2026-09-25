@@ -22,6 +22,15 @@ pub struct ServerModVersion {
 	pub hash: String,
 }
 
+#[derive(Deserialize)]
+pub struct ModDeprecation {
+    pub id: i32,
+    #[allow(unused)]
+    pub mod_id: String,
+    pub by: Vec<String>,
+    reason: String
+}
+
 #[derive(Subcommand, Debug)]
 #[clap(rename_all = "kebab-case")]
 pub enum Index {
@@ -105,11 +114,17 @@ pub enum AdminAction {
 
 #[derive(Deserialize, Debug, Clone, Subcommand, PartialEq)]
 pub enum DeprecateAction {
+    /// Add a deprecation to a mod
     Add {
         id: Option<String>,
         reason: Option<String>
     },
+    /// Remove a deprecation from a mod
     Remove {
+        id: Option<String>
+    },
+    /// Get all deprecations from a mod
+    Get {
         id: Option<String>
     }
 }
@@ -363,6 +378,48 @@ fn remove_deprecation(id: Option<String>, config: &Config) {
     info!("Removed all deprecations from mod {}", id);
 }
 
+fn get_deprecations(id: Option<String>, config: &Config) {
+    let id = id.unwrap_or_else(|| ask_value("Mod ID", None, true));
+
+    let client = reqwest::blocking::Client::new();
+    let url = get_index_url(format!("/v1/mods/{}/deprecations", id), config);
+
+    let response = client
+        .get(url)
+        .header(USER_AGENT, "GeodeCLI")
+        .send()
+        .nice_unwrap("Unable to connect to Geode Index");
+
+    if !response.status().is_success() {
+        let body: ApiResponse<String> = response
+            .json()
+            .nice_unwrap("Unable to parse response from Geode Index");
+        fatal!("Unable to get deprecations from mod: {}", body.error);
+    }
+
+    let body: ApiResponse<Vec<ModDeprecation>> = response
+        .json()
+        .nice_unwrap("Unable to parse response from Geode Index");
+    let data = body.payload;
+    if data.is_empty() {
+        fatal!("No deprecations found");
+    }
+
+    info!("Deprecations:");
+    for (i, deprecation) in data.iter().enumerate() {
+        println!("{}).", i + 1);
+        println!("- ID: {}", deprecation.id);
+        println!("- Reason: {}", deprecation.reason);
+
+        if !deprecation.by.is_empty() {
+            println!("- Alternatives");
+            for alt in deprecation.by.iter() {
+                println!("  - {}", alt);
+            }
+        }
+    }
+}
+
 fn set_index_url(url: String, config: &mut Config) {
 	if url == "default" {
 		config.index_url = "https://api.geode-sdk.org".to_string();
@@ -456,7 +513,8 @@ pub fn subcommand(cmd: Index) {
 			MyModAction::Edit => index_dev::edit_own_mods(config),
             MyModAction::Deprecations { command } => match command {
                 DeprecateAction::Add { id, reason } => add_deprecation(id, reason, config),
-                DeprecateAction::Remove { id } => remove_deprecation(id, config)
+                DeprecateAction::Remove { id } => remove_deprecation(id, config),
+                DeprecateAction::Get { id } => get_deprecations(id, config)
             }
 		},
 		Index::Profile => index_dev::edit_profile(config),
