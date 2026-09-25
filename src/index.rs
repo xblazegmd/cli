@@ -141,6 +141,12 @@ pub enum DeprecateAction {
     /// Get all deprecations from a mod
     Get {
         id: Option<String>
+    },
+    /// Update a deprecation for a mod
+    Update {
+        mod_id: Option<String>,
+        deprecation_id: Option<String>,
+        reason: Option<String>
     }
 }
 
@@ -439,6 +445,47 @@ fn get_deprecations(id: Option<String>, config: &Config) {
     }
 }
 
+fn update_deprecation(
+    mod_id: Option<String>,
+    deprecation_id: Option<String>,
+    reason: Option<String>,
+    config: &Config
+) {
+    if config.index_token.is_none() {
+        fatal!("You are not logged in");
+    }
+
+    let mod_id = mod_id.unwrap_or_else(|| ask_value("Mod ID", None, true));
+    let deprecation_id = deprecation_id.unwrap_or_else(|| ask_value("Deprecation ID", None, true));
+    let reason = reason.unwrap_or_else(|| ask_value("Reason", None, true));
+
+    let client = reqwest::blocking::Client::new();
+    let url = get_index_url(format!("/v1/mods/{}/deprecations/{}", mod_id, deprecation_id), config);
+
+    info!("Updating deprecation");
+
+    let response = client
+        .put(url)
+        .header(USER_AGENT, "GeodeCLI")
+        .bearer_auth(config.index_token.clone().unwrap())
+        .json(&json!({ "by": [], "reason": reason }))
+        .send()
+        .nice_unwrap("Unable to connect to Geode Index");
+
+    if response.status() == 404 {
+        fatal!("Deprecation {} doesn't exist", deprecation_id);
+    }
+
+    if !response.status().is_success() {
+        let body: ApiResponse<String> = response
+            .json()
+            .nice_unwrap("Unable to parse response from Geode Index");
+        fatal!("Unable to get deprecations from mod: {}", body.error);
+    }
+
+    done!("Updated deprecation successfully");
+}
+
 fn set_index_url(url: String, config: &mut Config) {
 	if url == "default" {
 		config.index_url = "https://api.geode-sdk.org".to_string();
@@ -533,7 +580,8 @@ pub fn subcommand(cmd: Index) {
             MyModAction::Deprecations { command } => match command {
                 DeprecateAction::Add { id, reason } => add_deprecation(id, reason, config),
                 DeprecateAction::Remove { id } => remove_deprecation(id, config),
-                DeprecateAction::Get { id } => get_deprecations(id, config)
+                DeprecateAction::Get { id } => get_deprecations(id, config),
+                DeprecateAction::Update { mod_id, deprecation_id, reason } => update_deprecation(mod_id, deprecation_id, reason, config)
             }
 		},
 		Index::Profile => index_dev::edit_profile(config),
