@@ -1,7 +1,7 @@
 use crate::config::Config;
 use crate::server::ApiResponse;
 use crate::util::logging::{ask_confirm, ask_value};
-use crate::{NiceUnwrap, deprecations, done, fatal, index, info};
+use crate::{NiceUnwrap, done, fatal, index, info};
 use reqwest::header::USER_AGENT;
 use serde::Deserialize;
 use serde_json::json;
@@ -23,7 +23,7 @@ impl Display for ModDeprecation {
         if !self.by.is_empty() {
             writeln!(f, "- Alternatives:")?;
             for (i, alt) in self.by.iter().enumerate() {
-                writeln!(f, "   {}. {}", i, alt)?;
+                writeln!(f, "   {}. {}", i + 1, alt)?;
             }
         }
         Ok(())
