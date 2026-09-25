@@ -10,6 +10,7 @@ use serde_json::json;
 use std::fs;
 use std::io::Cursor;
 use std::path::PathBuf;
+use std::fmt::Display;
 use zip::read::ZipFile;
 
 #[derive(Deserialize)]
@@ -29,6 +30,20 @@ pub struct ModDeprecation {
     pub mod_id: String,
     pub by: Vec<String>,
     reason: String
+}
+
+impl Display for ModDeprecation {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "- ID: {}", self.id)?;
+        writeln!(f, "- Reason: {}", self.reason)?;
+        if !self.by.is_empty() {
+            writeln!(f, "- Alternatives:")?;
+            for (i, alt) in self.by.iter().enumerate() {
+                writeln!(f, "   {}. {}", i, alt)?;
+            }
+        }
+        Ok(())
+    }
 }
 
 #[derive(Subcommand, Debug)]
@@ -420,15 +435,7 @@ fn get_deprecations(id: Option<String>, config: &Config) {
     info!("Deprecations:");
     for (i, deprecation) in data.iter().enumerate() {
         println!("{}).", i + 1);
-        println!("- ID: {}", deprecation.id);
-        println!("- Reason: {}", deprecation.reason);
-
-        if !deprecation.by.is_empty() {
-            println!("- Alternatives:");
-            for alt in deprecation.by.iter() {
-                println!("  - {}", alt);
-            }
-        }
+        println!("{}", deprecation);
     }
 }
 
