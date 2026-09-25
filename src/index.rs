@@ -1,6 +1,6 @@
 use crate::config::Config;
 use crate::server::{ApiResponse, PaginatedData};
-use crate::util::logging::ask_value;
+use crate::util::logging::{ask_confirm, ask_value};
 use crate::{done, fatal, index_admin, index_auth, index_dev, info, NiceUnwrap};
 use clap::Subcommand;
 use reqwest::header::USER_AGENT;
@@ -88,6 +88,11 @@ pub enum MyModAction {
 	Pending,
 	/// Edit data about a mod
 	Edit,
+    /// Manage mod deprecations
+    Deprecations {
+        #[clap(subcommand)]
+        command: DeprecateAction
+    }
 }
 
 #[derive(Deserialize, Debug, Clone, Subcommand, PartialEq)]
@@ -96,6 +101,17 @@ pub enum AdminAction {
 	ListPending,
 	/// Alter a developer's verified status
 	DevStatus,
+}
+
+#[derive(Deserialize, Debug, Clone, Subcommand, PartialEq)]
+pub enum DeprecateAction {
+    Add {
+        id: Option<String>,
+        reason: Option<String>
+    },
+    Remove {
+        id: Option<String>
+    }
 }
 
 pub fn install_mod(
@@ -280,6 +296,70 @@ fn update_mod(id: &str, download_link: &str, config: &mut Config) {
 	info!("Mod updated successfully");
 }
 
+fn add_deprecation(id: Option<String>, reason: Option<String>, config: &Config) {
+    if config.index_token.is_none() {
+        fatal!("You are not logged in");
+    }
+
+    let id = id.unwrap_or_else(|| ask_value("Mod ID", None, true));
+    let reason = reason.unwrap_or_else(|| ask_value("Reason", None, true));
+
+    ask_confirm(&format!("Are you sure you want to deprecate '{}'?", &id), false);
+
+    let client = reqwest::blocking::Client::new();
+    let url = get_index_url(format!("/v1/mods/{}/deprecations", id), config);
+
+    info!("Deprecating mod");
+
+    return;
+
+    let response = client
+        .post(url)
+        .header(USER_AGENT, "GeodeCLI")
+        .bearer_auth(config.index_token.clone().unwrap())
+        .json(&json!({ "by": [], "reason": reason }))
+        .send()
+        .nice_unwrap("Unable to connect to Geode Index");
+
+    if !response.status().is_success() {
+        let body: ApiResponse<String> = response
+            .json()
+            .nice_unwrap("Unable to parse response from Geode Index");
+        fatal!("Unable to deprecate mod: {}", body.error);
+    }
+
+    info!("Mod deprecated successfully");
+}
+
+fn remove_deprecation(id: Option<String>, config: &Config) {
+    if config.index_token.is_none() {
+        fatal!("You are not logged in");
+    }
+
+    let id = id.unwrap_or_else(|| ask_value("Mod ID", None, true));
+
+    let client = reqwest::blocking::Client::new();
+    let url = get_index_url(format!("/v1/mods/{}/deprecations", id), config);
+
+    info!("Removing all deprecations from mod {}", id);
+
+    let response = client
+        .delete(url)
+        .header(USER_AGENT, "GeodeCLI")
+        .bearer_auth(config.index_token.clone().unwrap())
+        .send()
+        .nice_unwrap("Unable to connect to Geode Index");
+
+    if !response.status().is_success() {
+        let body: ApiResponse<String> = response
+            .json()
+            .nice_unwrap("Unable to parse response from Geode Index");
+        fatal!("Unable to remove deprecations for mod: {}", body.error);
+    }
+
+    info!("Removed all deprecations from mod {}", id);
+}
+
 fn set_index_url(url: String, config: &mut Config) {
 	if url == "default" {
 		config.index_url = "https://api.geode-sdk.org".to_string();
@@ -371,6 +451,10 @@ pub fn subcommand(cmd: Index) {
 			MyModAction::Published => index_dev::print_own_mods(true, config),
 			MyModAction::Pending => index_dev::print_own_mods(false, config),
 			MyModAction::Edit => index_dev::edit_own_mods(config),
+            MyModAction::Deprecations { command } => match command {
+                DeprecateAction::Add { id, reason } => add_deprecation(id, reason, config),
+                DeprecateAction::Remove { id } => remove_deprecation(id, config)
+            }
 		},
 		Index::Profile => index_dev::edit_profile(config),
 		Index::Admin { commands } => index_admin::subcommand(commands, config),
