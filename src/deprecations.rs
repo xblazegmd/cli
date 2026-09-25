@@ -1,7 +1,7 @@
 use crate::config::Config;
 use crate::server::ApiResponse;
 use crate::util::logging::{ask_confirm, ask_value};
-use crate::{NiceUnwrap, done, fatal, index, info};
+use crate::{NiceUnwrap, info, done, fail, fatal, index};
 use reqwest::header::USER_AGENT;
 use serde::Deserialize;
 use serde_json::json;
@@ -61,6 +61,29 @@ fn get_mod_deprecations(id: &str, config: &Config) -> Vec<ModDeprecation> {
     body.payload
 }
 
+fn get_mod_alternatives(config: &Config) -> Vec<String> {
+    let mut ret = vec![];
+    let confirm = ask_confirm("Do you want to add any mod alternatives?", true);
+    if confirm {
+        loop {
+            let alternative = ask_value("Mod alternative ID (leave empty to finish)", None, false);
+            if alternative.is_empty() {
+                break;
+            }
+
+            let response = reqwest::blocking::get(index::get_index_url(format!("/v1/mods/{}", alternative), config))
+                .nice_unwrap("Unable to connect to Geode Index");
+            if response.status() == 404 {
+                fail!("Mod {} doesn't exist", alternative);
+            } else {
+                info!("Found mod '{}'", alternative);
+                ret.push(alternative);
+            }
+        }
+    }
+    ret
+}
+
 pub fn add_deprecation(id: Option<String>, reason: Option<String>, config: &Config) {
     if config.index_token.is_none() {
         fatal!("You are not logged in");
@@ -68,6 +91,7 @@ pub fn add_deprecation(id: Option<String>, reason: Option<String>, config: &Conf
 
     let id = id.unwrap_or_else(|| ask_value("Mod ID", None, true));
     let reason = reason.unwrap_or_else(|| ask_value("Reason", None, true));
+    let by = get_mod_alternatives(config);
 
     let confirm = ask_confirm(&format!("Are you sure you want to deprecate '{}'?", &id), false);
 
@@ -85,7 +109,7 @@ pub fn add_deprecation(id: Option<String>, reason: Option<String>, config: &Conf
         .post(url)
         .header(USER_AGENT, "GeodeCLI")
         .bearer_auth(config.index_token.clone().unwrap())
-        .json(&json!({ "by": [], "reason": reason }))
+        .json(&json!({ "by": by, "reason": reason }))
         .send()
         .nice_unwrap("Unable to connect to Geode Index");
 
@@ -164,6 +188,7 @@ pub fn update_deprecation(
     let mod_id = mod_id.unwrap_or_else(|| ask_value("Mod ID", None, true));
     let deprecation_id = deprecation_id.unwrap_or_else(|| ask_value("Deprecation ID", None, true));
     let reason = reason.unwrap_or_else(|| ask_value("Reason", None, true));
+    let by = get_mod_alternatives(config);
 
     let client = reqwest::blocking::Client::new();
     let url = index::get_index_url(format!("/v1/mods/{}/deprecations/{}", mod_id, deprecation_id), config);
@@ -179,7 +204,7 @@ pub fn update_deprecation(
         .put(url)
         .header(USER_AGENT, "GeodeCLI")
         .bearer_auth(config.index_token.clone().unwrap())
-        .json(&json!({ "by": [], "reason": reason }))
+        .json(&json!({ "by": by, "reason": reason }))
         .send()
         .nice_unwrap("Unable to connect to Geode Index");
 
